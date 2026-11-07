@@ -194,7 +194,7 @@ class _IDEScreenState extends State<IDEScreen> {
             tooltip: 'حفظ الملف',
           ),
           IconButton(
-            icon: const Icon(Icons.add_a_photo_outlined), // زر المعاينة سنفعله في الخطوة التالية
+            icon: const Icon(Icons.add_a_photo_outlined),
             onPressed: () {},
           ),
         ],
@@ -222,15 +222,15 @@ class _IDEScreenState extends State<IDEScreen> {
                   final file = _files[index];
                   final fileName = file.path.split('/').last;
                   return ListTile(
-                    leading: const Icon(Icons.insert_drive_file, color: Colors.blueLight),
+                    leading: const Icon(Icons.insert_drive_file, color: Colors.blue),
                     title: Text(fileName),
                     onTap: () {
                       if (file is File) {
                         _openFile(file);
-                        Navigator.pop(context); // إغلاق القائمة الجانبية
+                        Navigator.pop(context);
                       }
                     },
-                                    );
+                  );
                 },
               ),
             ),
