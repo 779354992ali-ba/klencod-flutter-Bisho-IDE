@@ -149,7 +149,6 @@ class _IDEScreenState extends State<IDEScreen> {
   // 3. تنسيق الكود تلقائياً (Code Formatter)
   Future<void> _formatCode() async {
     if (_webViewController != null) {
-      // استدعاء أمر التنسيق المدمج في محرك Monaco
       await _webViewController?.runJavaScript(
         "editor.getAction('editor.action.formatDocument').run()"
       );
@@ -167,14 +166,12 @@ class _IDEScreenState extends State<IDEScreen> {
   // 4. فحص الأخطاء (Diagnostics Checker)
   Future<void> _checkErrors() async {
     if (_webViewController != null) {
-      // فحص العلامات والأخطاء (Markers) في المحرر
       final String? markersJson = await _webViewController?.runJavaScriptReturningResult(
         "JSON.stringify(monaco.editor.getModelMarkers({}))"
       ) as String?;
 
       int errorCount = 0;
       if (markersJson != null && markersJson.length > 4) {
-        // إذا وجدنا علامات أخطاء
         errorCount = markersJson.split('severity').length - 1;
       }
 
@@ -295,25 +292,21 @@ class _IDEScreenState extends State<IDEScreen> {
       appBar: AppBar(
         title: Text(fileName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
         actions: [
-          // زر تنسيق الكود (Formatter)
           IconButton(
             icon: const Icon(Icons.auto_fix_high, color: Colors.pinkAccent),
             onPressed: _formatCode,
             tooltip: 'تنسيق الكود',
           ),
-          // زر فحص الأخطاء (Linter / Diagnostics)
           IconButton(
             icon: const Icon(Icons.bug_report_outlined, color: Colors.amberAccent),
             onPressed: _checkErrors,
             tooltip: 'فحص الأخطاء',
           ),
-          // زر المعاينة الحية (Play)
           IconButton(
             icon: const Icon(Icons.play_arrow, color: Colors.greenAccent),
             onPressed: _openLivePreview,
             tooltip: 'معاينة حية',
           ),
-          // زر الحفظ
           IconButton(
             icon: const Icon(Icons.save, color: Colors.cyanAccent),
             onPressed: _saveFile,
@@ -374,7 +367,7 @@ class PreviewScreen extends StatelessWidget {
   const PreviewScreen({super.key, required this.htmlContent});
 
   @override
-  Widget, build(BuildContext context) {
+  Widget build(BuildContext context) {
     final previewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..loadHtmlString(htmlContent);
