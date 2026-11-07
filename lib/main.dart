@@ -15,8 +15,11 @@ class MobileIDEApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Mobile IDE',
-      theme: ThemeData.dark(useMaterial3: true),
+      title: 'Bisho IDE',
+      theme: ThemeData.dark(useMaterial3: true).copyWith(
+        scaffoldBackgroundColor: const Color(0xFF121212),
+        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF1e1e1e)),
+      ),
       home: const IDEScreen(),
     );
   }
@@ -49,18 +52,38 @@ class _IDEScreenState extends State<IDEScreen> {
     await Permission.manageExternalStorage.request();
 
     final docDir = await getApplicationDocumentsDirectory();
-    final projectDir = Directory('${docDir.path}/MyProject');
+    final projectDir = Directory('${docDir.path}/BishoProject');
     if (!await projectDir.exists()) {
       await projectDir.create();
-      // إنشاء ملف افتراضي
       final defaultFile = File('${projectDir.path}/index.html');
-      await defaultFile.writeAsString('<!DOCTYPE html>\n<html>\n<body>\n  <h1>مرحباً بك في المحرر!</h1>\n</body>\n</html>');
+      await defaultFile.writeAsString('''<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مرحباً بك في Bisho IDE</title>
+    <style>
+        body { font-family: Tahoma, sans-serif; background: #121212; color: #fff; text-align: center; padding-top: 50px; }
+        h1 { color: #ff79c6; }
+        p { color: #8be9fd; }
+    </style>
+</head>
+<body>
+    <h1>مرحباً بك في محرك بيشو توب!</h1>
+    <p>هذا الموقع تم كتابته وتنسيقه بالكامل من الهاتف المحمول.</p>
+</body>
+</html>''');
     }
 
     setState(() {
       _projectDir = projectDir;
     });
     _loadFileList();
+    
+    final defaultOpen = File('${projectDir.path}/index.html');
+    if (defaultOpen.existsSync()) {
+      _openFile(defaultOpen);
+    }
   }
 
   // جلب قائمة الملفات
@@ -72,7 +95,7 @@ class _IDEScreenState extends State<IDEScreen> {
     }
   }
 
-  // 2. تهيئة محرر الكود (Monaco Editor عبر HTML/JS)
+  // 2. تهيئة محرر الكود (Monaco Editor)
   void _initWebView() {
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -96,22 +119,105 @@ class _IDEScreenState extends State<IDEScreen> {
   // حفظ التعديلات على الملف الحالي
   Future<void> _saveFile() async {
     if (currentFilePath.isNotEmpty && _webViewController != null) {
-      // استخراج النص من المحرر
       final String? content = await _webViewController?.runJavaScriptReturningResult(
         'editor.getValue()'
       ) as String?;
 
       if (content != null) {
-        // تنظيف السلسلة النصية القادمة من JS
-        String cleanContent = content.replaceAll(r'\"', '"').replaceAll(r'\n', '\n');
+        String cleanContent = content;
         if (cleanContent.startsWith('"') && cleanContent.endsWith('"')) {
           cleanContent = cleanContent.substring(1, cleanContent.length - 1);
         }
+        cleanContent = cleanContent.replaceAll(r'\"', '"').replaceAll(r'\n', '\n').replaceAll(r'\t', '\t');
+        
         await File(currentFilePath).writeAsString(cleanContent);
+        setState(() {
+          currentFileContent = cleanContent;
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم حفظ الملف بنجاح! 💾')),
+          const SnackBar(
+            content: Text('تم حفظ الملف بنجاح! 💾', style: TextStyle(color: Colors.white)),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
         );
       }
+    }
+  }
+
+  // 3. تنسيق الكود تلقائياً (Code Formatter)
+  Future<void> _formatCode() async {
+    if (_webViewController != null) {
+      // استدعاء أمر التنسيق المدمج في محرك Monaco
+      await _webViewController?.runJavaScript(
+        "editor.getAction('editor.action.formatDocument').run()"
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تم تنسيق وترتيب الكود بنجاح! ✨', style: TextStyle(color: Colors.white)),
+          backgroundColor: Colors.purpleAccent,
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  // 4. فحص الأخطاء (Diagnostics Checker)
+  Future<void> _checkErrors() async {
+    if (_webViewController != null) {
+      // فحص العلامات والأخطاء (Markers) في المحرر
+      final String? markersJson = await _webViewController?.runJavaScriptReturningResult(
+        "JSON.stringify(monaco.editor.getModelMarkers({}))"
+      ) as String?;
+
+      int errorCount = 0;
+      if (markersJson != null && markersJson.length > 4) {
+        // إذا وجدنا علامات أخطاء
+        errorCount = markersJson.split('severity').length - 1;
+      }
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('تقرير فحص الأخطاء 🔍'),
+          content: Text(
+            errorCount > 0 
+              ? 'تم العثور على $errorCount مشكلة أو خطأ في الكود. تحقق من الخطوط الحمراء داخل المحرر.'
+              : 'ممتاز! الكود خالي من الأخطاء الظاهرة وحسب القواعد البرمجية. ✅',
+            style: const TextStyle(fontSize: 16),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('حسناً'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  // 5. تشغيل المعاينة الحية للموقع
+  Future<void> _openLivePreview() async {
+    if (_webViewController != null) {
+      final String? content = await _webViewController?.runJavaScriptReturningResult(
+        'editor.getValue()'
+      ) as String?;
+
+      String previewContent = content ?? currentFileContent;
+      if (previewContent.startsWith('"') && previewContent.endsWith('"')) {
+        previewContent = previewContent.substring(1, previewContent.length - 1);
+      }
+      previewContent = previewContent.replaceAll(r'\"', '"').replaceAll(r'\n', '\n').replaceAll(r'\t', '\t');
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PreviewScreen(htmlContent: previewContent),
+        ),
+      );
     }
   }
 
@@ -158,7 +264,7 @@ class _IDEScreenState extends State<IDEScreen> {
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js"></script>
       <style>
-        html, body, #container { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #1e1e1e; }
+        html, body, #container { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #121212; }
       </style>
     </head>
     <body>
@@ -173,7 +279,7 @@ class _IDEScreenState extends State<IDEScreen> {
             theme: 'vs-dark',
             automaticLayout: true,
             fontSize: 14,
-            minimap: { enabled: false } // إيقاف الخريطة المصغرة لتوفير مساحة الشاشة
+            minimap: { enabled: false }
           });
         });
       </script>
@@ -184,18 +290,34 @@ class _IDEScreenState extends State<IDEScreen> {
 
   @override
   Widget build(BuildContext context) {
+    String fileName = currentFilePath.isEmpty ? 'Bisho IDE' : currentFilePath.split('/').last;
     return Scaffold(
       appBar: AppBar(
-        title: Text(currentFilePath.split('/').last.isEmpty ? 'Mobile IDE' : currentFilePath.split('/').last),
+        title: Text(fileName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
         actions: [
+          // زر تنسيق الكود (Formatter)
           IconButton(
-            icon: const Icon(Icons.save, color: Colors.greenAccent),
+            icon: const Icon(Icons.auto_fix_high, color: Colors.pinkAccent),
+            onPressed: _formatCode,
+            tooltip: 'تنسيق الكود',
+          ),
+          // زر فحص الأخطاء (Linter / Diagnostics)
+          IconButton(
+            icon: const Icon(Icons.bug_report_outlined, color: Colors.amberAccent),
+            onPressed: _checkErrors,
+            tooltip: 'فحص الأخطاء',
+          ),
+          // زر المعاينة الحية (Play)
+          IconButton(
+            icon: const Icon(Icons.play_arrow, color: Colors.greenAccent),
+            onPressed: _openLivePreview,
+            tooltip: 'معاينة حية',
+          ),
+          // زر الحفظ
+          IconButton(
+            icon: const Icon(Icons.save, color: Colors.cyanAccent),
             onPressed: _saveFile,
             tooltip: 'حفظ الملف',
-          ),
-          IconButton(
-            icon: const Icon(Icons.add_a_photo_outlined),
-            onPressed: () {},
           ),
         ],
       ),
@@ -203,14 +325,16 @@ class _IDEScreenState extends State<IDEScreen> {
         child: Column(
           children: [
             UserAccountsDrawerHeader(
-              accountName: const Text("مشروعي الحالي"),
+              decoration: const BoxDecoration(color: Color(0xFF1e1e1e)),
+              accountName: const Text("محرك Bisho IDE"),
               accountEmail: Text(_projectDir?.path ?? "جاري التحميل..."),
               currentAccountPicture: const CircleAvatar(
-                child: Icon(Icons.folder),
+                backgroundColor: Colors.purpleAccent,
+                child: Icon(Icons.code, color: Colors.white),
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.create_new_folder),
+              leading: const Icon(Icons.create_new_folder, color: Colors.amber),
               title: const Text('ملف جديد'),
               onTap: _createNewFile,
             ),
@@ -220,10 +344,10 @@ class _IDEScreenState extends State<IDEScreen> {
                 itemCount: _files.length,
                 itemBuilder: (context, index) {
                   final file = _files[index];
-                  final fileName = file.path.split('/').last;
+                  final name = file.path.split('/').last;
                   return ListTile(
                     leading: const Icon(Icons.insert_drive_file, color: Colors.blue),
-                    title: Text(fileName),
+                    title: Text(name),
                     onTap: () {
                       if (file is File) {
                         _openFile(file);
@@ -240,6 +364,27 @@ class _IDEScreenState extends State<IDEScreen> {
       body: _webViewController == null
           ? const Center(child: CircularProgressIndicator())
           : WebViewWidget(controller: _webViewController!),
+    );
+  }
+}
+
+// شاشة المعاينة الحية
+class PreviewScreen extends StatelessWidget {
+  final String htmlContent;
+  const PreviewScreen({super.key, required this.htmlContent});
+
+  @override
+  Widget, build(BuildContext context) {
+    final previewController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..loadHtmlString(htmlContent);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('المعاينة الحية (Live Preview)'),
+        backgroundColor: const Color(0xFF1e1e1e),
+      ),
+      body: WebViewWidget(controller: previewController),
     );
   }
 }
