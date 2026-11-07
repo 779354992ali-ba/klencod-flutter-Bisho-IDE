@@ -43,7 +43,6 @@ class _IDEScreenState extends State<IDEScreen> {
   void initState() {
     super.initState();
     _requestStoragePermissionAndInit();
-    _initWebView();
   }
 
   // 1. طلب أذونات التخزين وتهيئة المجلد الأساسي للمشروع
@@ -95,11 +94,12 @@ class _IDEScreenState extends State<IDEScreen> {
     }
   }
 
-  // 2. تهيئة محرر الكود (Monaco Editor)
-  void _initWebView() {
+  // 2. تهيئة محرر الكود (Monaco Editor) مع تفعيل التركيز التلقائي
+  void _initWebView(String content) {
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..loadHtmlString(_getMonacoHtml(currentFileContent));
+      ..setBackgroundColor(const Color(0xFF121212))
+      ..loadHtmlString(_getMonacoHtml(content));
 
     setState(() {
       _webViewController = controller;
@@ -113,7 +113,47 @@ class _IDEScreenState extends State<IDEScreen> {
       currentFilePath = file.path;
       currentFileContent = content;
     });
-    _webViewController?.loadHtmlString(_getMonacoHtml(content));
+    _initWebView(content);
+  }
+
+  // حذف ملف من المشروع
+  Future<void> _deleteFile(File file) async {
+    final fileName = file.path.split('/').last;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('حذف الملف'),
+        content: Text('هل أنت متأكد من حذف الملف "$fileName"؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () async {
+              if (await file.exists()) {
+                await file.delete();
+              }
+              Navigator.pop(context);
+              _loadFileList();
+              // إذا كان الملف المحذوف هو المفتوح حالياً، قم بتفريغ المحرر
+              if (currentFilePath == file.path) {
+                setState(() {
+                  currentFilePath = '';
+                  currentFileContent = '<!-- قم باختيار ملف آخر -->';
+                });
+                _initWebView(currentFileContent);
+              }
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('تم حذف الملف بنجاح! 🗑️', style: TextStyle(color: Colors.white)), backgroundColor: Colors.red),
+              );
+            },
+            child: const Text('حذف', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   // حفظ التعديلات على الملف الحالي
@@ -251,7 +291,7 @@ class _IDEScreenState extends State<IDEScreen> {
     );
   }
 
-  // قوالب HTML لتشغيل محرر Monaco المحمول
+  // قوالب HTML لتشغيل محرر Monaco المحمول مع تفعيل التركيز التلقائي
   String _getMonacoHtml(String code) {
     String escapedCode = code.replaceAll('`', r'\`').replaceAll(r'$', r'\$');
     return '''
@@ -278,6 +318,10 @@ class _IDEScreenState extends State<IDEScreen> {
             fontSize: 14,
             minimap: { enabled: false }
           });
+          // تركيز تلقائي للمحرر ليبدأ في استقبال الكتابة فوراً
+          setTimeout(function() {
+            editor.focus();
+          }, 300);
         });
       </script>
     </body>
@@ -341,6 +385,14 @@ class _IDEScreenState extends State<IDEScreen> {
                   return ListTile(
                     leading: const Icon(Icons.insert_drive_file, color: Colors.blue),
                     title: Text(name),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                      onPressed: () {
+                        if (file is File) {
+                          _deleteFile(file);
+                        }
+                      },
+                    ),
                     onTap: () {
                       if (file is File) {
                         _openFile(file);
