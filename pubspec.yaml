@@ -1,0 +1,26 @@
+name: bisho_ide
+description: A professional task manager built with Flutter.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  shared_preferences: ^2.2.2
+flutter:
+  uses-material-design: truedependencies:
+  flutter:
+    sdk: flutter
+  
+  # إدارة الملفات والمجلدات على الهاتف
+  path_provider: ^2.1.2
+  permission_handler: ^11.3.0
+  
+  # تشغيل محرر الكود والمعاينة المباشرة
+  webview_flutter: ^4.7.0
+  
+  # أيقونات وإدارات واجهة
+  flutter_highlight: ^0.7.0 # خيار خفيف لإبراز الشفرة
